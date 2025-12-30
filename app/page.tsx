@@ -126,6 +126,29 @@ export default function NaviAIDashboard() {
     }
   }
 
+  const handleMultipleSave = async (scenarios: Scenario[]) => {
+    try {
+      // Save all scenarios in parallel
+      await Promise.all(scenarios.map((scenario) => createScenario(scenario)))
+
+      toast({
+        title: "성공",
+        description: `${scenarios.length}개의 시나리오가 추가되었습니다.`,
+      })
+
+      setIsFormOpen(false)
+      setEditingScenario(null)
+      await loadScenarios()
+      await loadStats()
+    } catch (error) {
+      toast({
+        title: "오류",
+        description: error instanceof Error ? error.message : "시나리오 저장에 실패했습니다.",
+        variant: "destructive",
+      })
+    }
+  }
+
   const handleEditScenario = (scenario: Scenario) => {
     setEditingScenario(scenario)
     setIsFormOpen(true)
@@ -407,6 +430,7 @@ export default function NaviAIDashboard() {
               setIsFormOpen(false)
               setEditingScenario(null)
             }}
+            onMultipleSave={handleMultipleSave}
           />
         </DialogContent>
       </Dialog>

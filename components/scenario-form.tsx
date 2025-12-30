@@ -9,14 +9,17 @@ import { Textarea } from "@/components/ui/textarea"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { Scenario } from "@/lib/types"
+import { analyzeMultipleQueries } from "@/lib/actions/ai-analysis"
+import { Loader2, Sparkles } from "lucide-react"
 
 interface ScenarioFormProps {
   scenario: Scenario | null
   onSave: (scenario: Scenario) => void
   onCancel: () => void
+  onMultipleSave?: (scenarios: Scenario[]) => void
 }
 
-export function ScenarioForm({ scenario, onSave, onCancel }: ScenarioFormProps) {
+export function ScenarioForm({ scenario, onSave, onCancel, onMultipleSave }: ScenarioFormProps) {
   const [formData, setFormData] = useState<Scenario>({
     id: "",
     category: "경로안내",
@@ -37,6 +40,7 @@ export function ScenarioForm({ scenario, onSave, onCancel }: ScenarioFormProps) 
     createdAt: new Date().toISOString().split("T")[0],
   })
   const [tagInput, setTagInput] = useState("")
+  const [isAnalyzing, setIsAnalyzing] = useState(false)
 
   useEffect(() => {
     if (scenario) {
@@ -44,6 +48,30 @@ export function ScenarioForm({ scenario, onSave, onCancel }: ScenarioFormProps) 
       setTagInput(scenario.tags.join(", "))
     }
   }, [scenario])
+
+  const handleAIAnalysis = async () => {
+    if (!formData.query.raw.trim()) {
+      return
+    }
+
+    setIsAnalyzing(true)
+    try {
+      const analyzedScenarios = await analyzeMultipleQueries(formData.query.raw)
+
+      if (analyzedScenarios.length === 1) {
+        const analyzed = analyzedScenarios[0]
+        setFormData(analyzed)
+        setTagInput(analyzed.tags.join(", "))
+      } else if (analyzedScenarios.length > 1 && onMultipleSave) {
+        onMultipleSave(analyzedScenarios)
+      }
+    } catch (error) {
+      console.error("[v0] Analysis error:", error)
+      alert("질의 분석에 실패했습니다. 다시 시도해주세요.")
+    } finally {
+      setIsAnalyzing(false)
+    }
+  }
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
@@ -102,9 +130,31 @@ export function ScenarioForm({ scenario, onSave, onCancel }: ScenarioFormProps) 
         </div>
       </div>
 
-      {/* User Utterance */}
+      {/* User Utterance with AI Analysis */}
       <div>
-        <Label htmlFor="raw">사용자 발화 (Raw Utterance) *</Label>
+        <div className="flex items-center justify-between mb-2">
+          <Label htmlFor="raw">사용자 발화 (Raw Utterance) *</Label>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={handleAIAnalysis}
+            disabled={isAnalyzing || !formData.query.raw.trim()}
+            className="gap-2 bg-transparent"
+          >
+            {isAnalyzing ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                분석 중...
+              </>
+            ) : (
+              <>
+                <Sparkles className="h-4 w-4" />
+                AI 자동 분석
+              </>
+            )}
+          </Button>
+        </div>
         <Textarea
           id="raw"
           value={formData.query.raw}
@@ -114,10 +164,13 @@ export function ScenarioForm({ scenario, onSave, onCancel }: ScenarioFormProps) 
               query: { ...formData.query, raw: e.target.value },
             })
           }
-          placeholder="예: 회사까지 가장 빠른 길로 안내해줘"
-          className="min-h-[80px]"
+          placeholder="예: 회사까지 가장 빠른 길로 안내해줘&#10;&#10;여러 질의를 줄바꿈으로 구분하여 입력하면 각각 분석됩니다."
+          className="min-h-[100px]"
           required
         />
+        <p className="text-xs text-muted-foreground mt-1">
+          💡 팁: 여러 질의를 줄바꿈으로 구분하여 입력한 후 'AI 자동 분석'을 클릭하면 각각 개별 시나리오로 생성됩니다.
+        </p>
       </div>
 
       {/* Query Analysis Section */}
