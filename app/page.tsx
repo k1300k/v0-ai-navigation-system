@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { useState, useMemo, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -24,61 +24,68 @@ import {
   ChevronDown,
   Edit,
   Trash2,
+  Loader2,
 } from "lucide-react"
 import { ScenarioForm } from "@/components/scenario-form"
 import { StatsView } from "@/components/stats-view"
 import { CategoryLegend } from "@/components/category-legend"
 import type { Scenario } from "@/lib/types"
-
-const initialScenarios: Scenario[] = [
-  {
-    id: "NAV_001",
-    category: "경로안내",
-    query: {
-      raw: "회사까지 가장 빠른 길로 안내해줘",
-      context: "출근 시간대, 자택 출발",
-      intent: "최적 경로 탐색",
-      expectation: "실시간 최단시간 경로",
-      action: "경로 탐색 및 안내 시작",
-    },
-    response: {
-      trigger: "현재 위치에서 회사까지",
-      phenomenon: "주요 도로 출근 정체 중",
-      impact: "예상 35분, 5분 지연",
-      offer: "우회 경로로 안내 시작",
-    },
-    tags: ["출퇴근", "실시간교통"],
-    createdAt: "2024-01-15",
-  },
-  {
-    id: "NAV_002",
-    category: "주변시설",
-    query: {
-      raw: "근처 주유소 찾아줘",
-      context: "고속도로 주행 중, 연료 부족",
-      intent: "가까운 주유소 검색",
-      expectation: "거리순 주유소 목록",
-      action: "POI 검색 및 경로 안내",
-    },
-    response: {
-      trigger: "현재 위치 반경 5km 내",
-      phenomenon: "3개 주유소 이용 가능",
-      impact: "가장 가까운 곳 2km, 5분 소요",
-      offer: "○○ 주유소로 안내할까요?",
-    },
-    tags: ["주유소", "POI검색"],
-    createdAt: "2024-01-14",
-  },
-]
+import {
+  getAllScenarios,
+  createScenario,
+  updateScenario,
+  deleteScenario,
+  getScenarioStats,
+} from "@/lib/actions/scenarios"
+import { useToast } from "@/hooks/use-toast"
 
 export default function NaviAIDashboard() {
-  const [scenarios, setScenarios] = useState<Scenario[]>(initialScenarios)
+  const [scenarios, setScenarios] = useState<Scenario[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [stats, setStats] = useState({
+    total: 0,
+    categoryCount: 0,
+    recentCount: 0,
+    categoryStats: {} as Record<string, number>,
+  })
+  const { toast } = useToast()
+
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [isStatsOpen, setIsStatsOpen] = useState(false)
   const [editingScenario, setEditingScenario] = useState<Scenario | null>(null)
   const [expandedRow, setExpandedRow] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState("")
   const [categoryFilter, setCategoryFilter] = useState<string>("all")
+
+  useEffect(() => {
+    loadScenarios()
+    loadStats()
+  }, [])
+
+  const loadScenarios = async () => {
+    try {
+      setIsLoading(true)
+      const data = await getAllScenarios()
+      setScenarios(data)
+    } catch (error) {
+      toast({
+        title: "오류",
+        description: error instanceof Error ? error.message : "시나리오를 불러오는데 실패했습니다.",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const loadStats = async () => {
+    try {
+      const data = await getScenarioStats()
+      setStats(data)
+    } catch (error) {
+      console.error("[v0] Error loading stats:", error)
+    }
+  }
 
   const filteredScenarios = useMemo(() => {
     return scenarios.filter((scenario) => {
@@ -91,14 +98,32 @@ export default function NaviAIDashboard() {
     })
   }, [scenarios, searchTerm, categoryFilter])
 
-  const handleSaveScenario = (scenario: Scenario) => {
-    if (editingScenario) {
-      setScenarios((prev) => prev.map((s) => (s.id === scenario.id ? scenario : s)))
-    } else {
-      setScenarios((prev) => [...prev, scenario])
+  const handleSaveScenario = async (scenario: Scenario) => {
+    try {
+      if (editingScenario) {
+        await updateScenario(scenario)
+        toast({
+          title: "성공",
+          description: "시나리오가 수정되었습니다.",
+        })
+      } else {
+        await createScenario(scenario)
+        toast({
+          title: "성공",
+          description: "시나리오가 추가되었습니다.",
+        })
+      }
+      setIsFormOpen(false)
+      setEditingScenario(null)
+      await loadScenarios()
+      await loadStats()
+    } catch (error) {
+      toast({
+        title: "오류",
+        description: error instanceof Error ? error.message : "시나리오 저장에 실패했습니다.",
+        variant: "destructive",
+      })
     }
-    setIsFormOpen(false)
-    setEditingScenario(null)
   }
 
   const handleEditScenario = (scenario: Scenario) => {
@@ -106,8 +131,26 @@ export default function NaviAIDashboard() {
     setIsFormOpen(true)
   }
 
-  const handleDeleteScenario = (id: string) => {
-    setScenarios((prev) => prev.filter((s) => s.id !== id))
+  const handleDeleteScenario = async (id: string) => {
+    if (!confirm("정말 이 시나리오를 삭제하시겠습니까?")) {
+      return
+    }
+
+    try {
+      await deleteScenario(id)
+      toast({
+        title: "성공",
+        description: "시나리오가 삭제되었습니다.",
+      })
+      await loadScenarios()
+      await loadStats()
+    } catch (error) {
+      toast({
+        title: "오류",
+        description: error instanceof Error ? error.message : "시나리오 삭제에 실패했습니다.",
+        variant: "destructive",
+      })
+    }
   }
 
   const handleExport = () => {
@@ -120,13 +163,18 @@ export default function NaviAIDashboard() {
     link.click()
   }
 
-  const categoryStats = useMemo(() => {
-    const counts: Record<string, number> = {}
-    scenarios.forEach((s) => {
-      counts[s.category] = (counts[s.category] || 0) + 1
-    })
-    return counts
-  }, [scenarios])
+  const categoryStats = stats.categoryStats
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+          <p className="text-sm text-muted-foreground">시나리오를 불러오는 중...</p>
+        </div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-background">
@@ -156,13 +204,13 @@ export default function NaviAIDashboard() {
       </header>
 
       <div className="mx-auto max-w-[1600px] px-6 py-8">
-        {/* Stats Cards */}
+        {/* Stats Cards - Use database stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-8">
           <Card className="p-6 border-border">
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">전체 시나리오</p>
-                <p className="text-3xl font-semibold text-foreground">{scenarios.length}</p>
+                <p className="text-3xl font-semibold text-foreground">{stats.total}</p>
               </div>
               <div className="h-10 w-10 rounded-lg bg-blue-500/10 flex items-center justify-center">
                 <Navigation className="h-5 w-5 text-blue-500" />
@@ -173,7 +221,7 @@ export default function NaviAIDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">카테고리 수</p>
-                <p className="text-3xl font-semibold text-foreground">{Object.keys(categoryStats).length}</p>
+                <p className="text-3xl font-semibold text-foreground">{stats.categoryCount}</p>
               </div>
               <div className="h-10 w-10 rounded-lg bg-purple-500/10 flex items-center justify-center">
                 <BarChart3 className="h-5 w-5 text-purple-500" />
@@ -184,12 +232,7 @@ export default function NaviAIDashboard() {
             <div className="flex items-start justify-between">
               <div>
                 <p className="text-sm text-muted-foreground mb-1">최근 추가</p>
-                <p className="text-3xl font-semibold text-foreground">
-                  {
-                    scenarios.filter((s) => new Date(s.createdAt) > new Date(Date.now() - 7 * 24 * 60 * 60 * 1000))
-                      .length
-                  }
-                </p>
+                <p className="text-3xl font-semibold text-foreground">{stats.recentCount}</p>
               </div>
               <div className="h-10 w-10 rounded-lg bg-green-500/10 flex items-center justify-center">
                 <Calendar className="h-5 w-5 text-green-500" />
