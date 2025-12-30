@@ -322,7 +322,7 @@ export default function NaviAIDashboard() {
                     </TableCell>
                   </TableRow>
                   {expandedRow === scenario.id && (
-                    <TableRow className="border-border">
+                    <TableRow key={`${scenario.id}-expanded`} className="border-border">
                       <TableCell colSpan={5} className="bg-muted/30">
                         <div className="py-4 px-2 grid grid-cols-1 md:grid-cols-2 gap-6">
                           {/* Query Analysis */}
