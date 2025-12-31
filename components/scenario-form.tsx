@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { Scenario } from "@/lib/types"
 import { analyzeMultipleQueries } from "@/lib/actions/ai-analysis"
+import { getAIConfig } from "@/components/ai-settings"
 import { Loader2, Sparkles } from "lucide-react"
 
 interface ScenarioFormProps {
@@ -56,7 +57,10 @@ export function ScenarioForm({ scenario, onSave, onCancel, onMultipleSave }: Sce
 
     setIsAnalyzing(true)
     try {
-      const analyzedScenarios = await analyzeMultipleQueries(formData.query.raw)
+      const aiConfig = getAIConfig()
+      console.log("[v0] Using AI config:", aiConfig)
+
+      const analyzedScenarios = await analyzeMultipleQueries(formData.query.raw, aiConfig)
 
       if (analyzedScenarios.length === 1) {
         const analyzed = analyzedScenarios[0]

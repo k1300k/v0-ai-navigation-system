@@ -29,6 +29,7 @@ import {
 import { ScenarioForm } from "@/components/scenario-form"
 import { StatsView } from "@/components/stats-view"
 import { CategoryLegend } from "@/components/category-legend"
+import { AISettings } from "@/components/ai-settings"
 import type { Scenario } from "@/lib/types"
 import {
   getAllScenarios,
@@ -210,6 +211,8 @@ export default function NaviAIDashboard() {
               <p className="text-sm text-muted-foreground mt-1">AI 에이전트 내비게이션 서비스 시나리오 데이터베이스</p>
             </div>
             <div className="flex items-center gap-3">
+              {/* AI Settings button */}
+              <AISettings />
               <Button variant="outline" size="sm" onClick={() => setIsStatsOpen(true)}>
                 <BarChart3 className="h-4 w-4 mr-2" />
                 통계 보기

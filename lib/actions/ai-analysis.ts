@@ -1,6 +1,8 @@
 "use server"
 
 import { generateObject } from "ai"
+import { createOpenAI } from "@ai-sdk/openai"
+import { createGoogleGenerativeAI } from "@ai-sdk/google"
 import { z } from "zod"
 import type { Scenario } from "@/lib/types"
 
@@ -31,23 +33,54 @@ const scenarioAnalysisSchema = z.object({
   ),
 })
 
-export async function analyzeMultipleQueries(rawText: string): Promise<Scenario[]> {
+export async function analyzeMultipleQueries(
+  rawText: string,
+  config?: { provider: string; model: string; apiKey?: string },
+): Promise<Scenario[]> {
   try {
-    console.log("[v0] Starting AI analysis for:", rawText.substring(0, 100))
+    console.log("[v0] Starting AI analysis")
+    console.log("[v0] Provider:", config?.provider || "vercel")
+    console.log("[v0] Model:", config?.model || "openai/gpt-4o-mini")
+    console.log("[v0] Input text length:", rawText.length)
 
     const queries = rawText
       .split(/[\n.]{3,}|[\n]+/)
-      .map((q) => q.trim().replace(/^[\d.]+\s*/, "")) // 번호 제거
-      .filter((q) => q.length > 3 && !q.startsWith("#")) // 짧은 텍스트와 주석 제외
+      .map((q) => q.trim().replace(/^[\d.]+\s*/, ""))
+      .filter((q) => q.length > 3 && !q.startsWith("#"))
 
-    console.log("[v0] Parsed queries count:", queries.length)
+    console.log("[v0] Parsed queries:", queries)
+    console.log("[v0] Queries count:", queries.length)
 
     if (queries.length === 0) {
       throw new Error("분석할 질의가 없습니다.")
     }
 
-    const { object } = await generateObject({
-      model: "openai/gpt-4o",
+    // Determine which model to use
+    let modelString = config?.model || "openai/gpt-4o-mini"
+    let modelProvider: any = undefined
+
+    if (config?.provider === "openai" && config.apiKey) {
+      // Use OpenAI directly with custom API key
+      const openai = createOpenAI({
+        apiKey: config.apiKey,
+      })
+      modelProvider = openai(config.model)
+      console.log("[v0] Using OpenAI with custom API key")
+    } else if (config?.provider === "google" && config.apiKey) {
+      // Use Google Gemini with custom API key
+      const google = createGoogleGenerativeAI({
+        apiKey: config.apiKey,
+      })
+      modelProvider = google(config.model)
+      console.log("[v0] Using Google Gemini with custom API key")
+    } else {
+      // Use Vercel AI Gateway (default, no API key needed)
+      modelString = config?.model || "openai/gpt-4o-mini"
+      console.log("[v0] Using Vercel AI Gateway:", modelString)
+    }
+
+    const result = await generateObject({
+      model: modelProvider || modelString,
       schema: scenarioAnalysisSchema,
       prompt: `당신은 자동차 내비게이션 AI 시스템의 시나리오 분석 전문가입니다. 
 사용자의 자연스러운 발화를 분석하여 구체적이고 현실적인 AI 시나리오를 생성하세요.
@@ -139,10 +172,11 @@ ${queries.map((q, i) => `${i + 1}. ${q}`).join("\n")}
 - 태그는 2-4개, 검색 가능한 키워드 중심`,
     })
 
-    console.log("[v0] AI analysis completed, scenarios count:", object.scenarios.length)
+    console.log("[v0] AI SDK call successful")
+    console.log("[v0] Scenarios count:", result.object.scenarios.length)
 
     // Convert to Scenario format
-    const scenarios: Scenario[] = object.scenarios.map((s, index) => ({
+    const scenarios: Scenario[] = result.object.scenarios.map((s, index) => ({
       id: `NAV_${Date.now()}_${index}`,
       category: s.category,
       query: {
@@ -162,14 +196,17 @@ ${queries.map((q, i) => `${i + 1}. ${q}`).join("\n")}
       createdAt: new Date().toISOString().split("T")[0],
     }))
 
-    console.log("[v0] Successfully created scenarios")
+    console.log("[v0] Successfully created", scenarios.length, "scenarios")
     return scenarios
   } catch (error) {
-    console.error("[v0] Error analyzing queries:", error)
-    if (error instanceof Error) {
-      console.error("[v0] Error message:", error.message)
-      console.error("[v0] Error stack:", error.stack)
+    console.error("[v0] ===== ERROR IN AI ANALYSIS =====")
+    console.error("[v0] Error type:", error?.constructor?.name)
+    console.error("[v0] Error message:", error instanceof Error ? error.message : String(error))
+    console.error("[v0] Full error:", error)
+    if (error instanceof Error && error.stack) {
+      console.error("[v0] Stack trace:", error.stack)
     }
-    throw new Error("질의 분석에 실패했습니다. 다시 시도해주세요.")
+    console.error("[v0] ================================")
+    throw new Error(`질의 분석에 실패했습니다: ${error instanceof Error ? error.message : "알 수 없는 오류"}`)
   }
 }
