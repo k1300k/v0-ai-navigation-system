@@ -175,6 +175,8 @@ ${queries.map((q, i) => `${i + 1}. ${q}`).join("\n")}
     console.log("[v0] AI SDK call successful")
     console.log("[v0] Scenarios count:", result.object.scenarios.length)
 
+    const currentDateTime = new Date().toISOString().slice(0, 16).replace("T", " ")
+
     // Convert to Scenario format
     const scenarios: Scenario[] = result.object.scenarios.map((s, index) => ({
       id: `NAV_${Date.now()}_${index}`,
@@ -193,7 +195,7 @@ ${queries.map((q, i) => `${i + 1}. ${q}`).join("\n")}
         offer: s.response_offer,
       },
       tags: s.tags,
-      createdAt: new Date().toISOString().split("T")[0],
+      createdAt: currentDateTime,
     }))
 
     console.log("[v0] Successfully created", scenarios.length, "scenarios")

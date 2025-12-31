@@ -38,7 +38,7 @@ export function ScenarioForm({ scenario, onSave, onCancel, onMultipleSave }: Sce
       offer: "",
     },
     tags: [],
-    createdAt: new Date().toISOString().split("T")[0],
+    createdAt: new Date().toISOString().slice(0, 16).replace("T", " "), // YYYY-MM-DD HH:mm
   })
   const [tagInput, setTagInput] = useState("")
   const [isAnalyzing, setIsAnalyzing] = useState(false)
@@ -124,12 +124,12 @@ export function ScenarioForm({ scenario, onSave, onCancel, onMultipleSave }: Sce
           </Select>
         </div>
         <div>
-          <Label htmlFor="date">생성일</Label>
+          <Label htmlFor="date">생성일시</Label>
           <Input
             id="date"
-            type="date"
-            value={formData.createdAt}
-            onChange={(e) => setFormData({ ...formData, createdAt: e.target.value })}
+            type="datetime-local"
+            value={formData.createdAt.replace(" ", "T")}
+            onChange={(e) => setFormData({ ...formData, createdAt: e.target.value.replace("T", " ") })}
           />
         </div>
       </div>

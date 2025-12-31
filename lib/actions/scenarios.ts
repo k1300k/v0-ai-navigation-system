@@ -6,6 +6,10 @@ import { revalidatePath } from "next/cache"
 
 // Helper to convert DB row to Scenario type
 function dbRowToScenario(row: any): Scenario {
+  const createdDate = new Date(row.created_at)
+  const koreaTime = new Date(createdDate.getTime() + 9 * 60 * 60 * 1000) // UTC+9
+  const formattedDate = koreaTime.toISOString().slice(0, 16).replace("T", " ") // YYYY-MM-DD HH:mm
+
   return {
     id: row.id,
     category: row.category,
@@ -23,7 +27,7 @@ function dbRowToScenario(row: any): Scenario {
       offer: row.response_offer,
     },
     tags: row.tags || [],
-    createdAt: new Date(row.created_at).toISOString().split("T")[0],
+    createdAt: formattedDate,
   }
 }
 
