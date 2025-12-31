@@ -33,10 +33,14 @@ const scenarioAnalysisSchema = z.object({
 
 export async function analyzeMultipleQueries(rawText: string): Promise<Scenario[]> {
   try {
+    console.log("[v0] Starting AI analysis for:", rawText.substring(0, 100))
+
     const queries = rawText
       .split(/[\n.]{3,}|[\n]+/)
       .map((q) => q.trim().replace(/^[\d.]+\s*/, "")) // 번호 제거
       .filter((q) => q.length > 3 && !q.startsWith("#")) // 짧은 텍스트와 주석 제외
+
+    console.log("[v0] Parsed queries count:", queries.length)
 
     if (queries.length === 0) {
       throw new Error("분석할 질의가 없습니다.")
@@ -133,8 +137,9 @@ ${queries.map((q, i) => `${i + 1}. ${q}`).join("\n")}
 - 모호한 표현 지양, 수치와 거리 포함
 - AI 응답은 친근하고 자연스러운 말투로
 - 태그는 2-4개, 검색 가능한 키워드 중심`,
-      maxOutputTokens: 8000,
     })
+
+    console.log("[v0] AI analysis completed, scenarios count:", object.scenarios.length)
 
     // Convert to Scenario format
     const scenarios: Scenario[] = object.scenarios.map((s, index) => ({
@@ -157,9 +162,14 @@ ${queries.map((q, i) => `${i + 1}. ${q}`).join("\n")}
       createdAt: new Date().toISOString().split("T")[0],
     }))
 
+    console.log("[v0] Successfully created scenarios")
     return scenarios
   } catch (error) {
     console.error("[v0] Error analyzing queries:", error)
-    throw new Error("질의 분석에 실패했습니다.")
+    if (error instanceof Error) {
+      console.error("[v0] Error message:", error.message)
+      console.error("[v0] Error stack:", error.stack)
+    }
+    throw new Error("질의 분석에 실패했습니다. 다시 시도해주세요.")
   }
 }
