@@ -25,6 +25,7 @@ import {
   Edit,
   Trash2,
   Loader2,
+  FileSpreadsheet,
 } from "lucide-react"
 import { ScenarioForm } from "@/components/scenario-form"
 import { StatsView } from "@/components/stats-view"
@@ -187,6 +188,68 @@ export default function NaviAIDashboard() {
     link.click()
   }
 
+  const handleExportCSV = () => {
+    // CSV header
+    const headers = [
+      "ID",
+      "카테고리",
+      "사용자 발화",
+      "맥락(Context)",
+      "의도(Intent)",
+      "기대(Expectation)",
+      "행동(Action)",
+      "트리거(Trigger)",
+      "현상(Phenomenon)",
+      "영향(Impact)",
+      "제안(Offer)",
+      "태그",
+      "생성일",
+    ]
+
+    // Convert scenarios to CSV rows
+    const rows = scenarios.map((scenario) => [
+      scenario.id,
+      scenario.category,
+      scenario.query.raw,
+      scenario.query.context,
+      scenario.query.intent,
+      scenario.query.expectation,
+      scenario.query.action,
+      scenario.response.trigger,
+      scenario.response.phenomenon,
+      scenario.response.impact,
+      scenario.response.offer,
+      scenario.tags.join("; "),
+      scenario.createdAt,
+    ])
+
+    // Escape CSV fields (handle commas, quotes, newlines)
+    const escapeCSV = (field: string) => {
+      if (field.includes(",") || field.includes('"') || field.includes("\n")) {
+        return `"${field.replace(/"/g, '""')}"`
+      }
+      return field
+    }
+
+    // Build CSV string
+    const csvContent = [headers.map(escapeCSV).join(","), ...rows.map((row) => row.map(escapeCSV).join(","))].join("\n")
+
+    // Add BOM for proper Excel UTF-8 handling
+    const BOM = "\uFEFF"
+    const blob = new Blob([BOM + csvContent], { type: "text/csv;charset=utf-8;" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `naviAI-scenarios-${new Date().toISOString().split("T")[0]}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+
+    toast({
+      title: "성공",
+      description: `${scenarios.length}개의 시나리오를 CSV로 내보냈습니다.`,
+    })
+  }
+
   const categoryStats = stats.categoryStats
 
   if (isLoading) {
@@ -217,9 +280,13 @@ export default function NaviAIDashboard() {
                 <BarChart3 className="h-4 w-4 mr-2" />
                 통계 보기
               </Button>
+              <Button variant="outline" size="sm" onClick={handleExportCSV}>
+                <FileSpreadsheet className="h-4 w-4 mr-2" />
+                CSV 내보내기
+              </Button>
               <Button variant="outline" size="sm" onClick={handleExport}>
                 <Download className="h-4 w-4 mr-2" />
-                내보내기
+                JSON 내보내기
               </Button>
               <Button size="sm" onClick={() => setIsFormOpen(true)}>
                 <Plus className="h-4 w-4 mr-2" />새 시나리오 추가
