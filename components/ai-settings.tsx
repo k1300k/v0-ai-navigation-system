@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label"
 import { Card } from "@/components/ui/card"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Settings, Save, RotateCcw } from "lucide-react"
+import { useToast } from "@/hooks/use-toast"
 
 export interface AIConfig {
   provider: "vercel" | "openai" | "google"
@@ -41,30 +42,53 @@ const PROVIDER_MODELS = {
 export function AISettings({ onSave }: { onSave?: (config: AIConfig) => void }) {
   const [config, setConfig] = useState<AIConfig>(DEFAULT_CONFIG)
   const [isOpen, setIsOpen] = useState(false)
+  const { toast } = useToast()
 
   useEffect(() => {
-    // Load saved config from localStorage
     const saved = localStorage.getItem("ai-config")
     if (saved) {
       try {
-        setConfig(JSON.parse(saved))
+        const parsedConfig = JSON.parse(saved)
+        console.log("[v0] AI 설정 불러옴:", parsedConfig)
+        setConfig(parsedConfig)
       } catch (error) {
-        console.error("Failed to parse saved AI config:", error)
+        console.error("[v0] AI 설정 파싱 실패:", error)
       }
+    } else {
+      console.log("[v0] 저장된 AI 설정 없음, 기본값 사용")
     }
   }, [])
 
   const handleSave = () => {
+    if (config.provider !== "vercel" && !config.apiKey) {
+      toast({
+        title: "API 키를 입력해주세요",
+        description: `${config.provider === "openai" ? "OpenAI" : "Google"} API 키가 필요합니다.`,
+        variant: "destructive",
+      })
+      return
+    }
+
     localStorage.setItem("ai-config", JSON.stringify(config))
+    console.log("[v0] AI 설정 저장됨:", config)
     onSave?.(config)
     setIsOpen(false)
-    alert("AI 설정이 저장되었습니다.")
+
+    toast({
+      title: "AI 설정이 저장되었습니다",
+      description: `${config.provider === "vercel" ? "Vercel AI Gateway" : config.provider === "openai" ? "OpenAI" : "Google"} - ${config.model}`,
+    })
   }
 
   const handleReset = () => {
     setConfig(DEFAULT_CONFIG)
     localStorage.removeItem("ai-config")
-    alert("AI 설정이 초기화되었습니다.")
+    console.log("[v0] AI 설정 초기화")
+
+    toast({
+      title: "AI 설정이 초기화되었습니다",
+      description: "기본 설정(Vercel AI Gateway)으로 되돌렸습니다.",
+    })
   }
 
   const handleProviderChange = (provider: AIConfig["provider"]) => {
